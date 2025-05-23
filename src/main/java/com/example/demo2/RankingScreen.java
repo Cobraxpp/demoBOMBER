@@ -1,7 +1,5 @@
 package com.example.demo2;
 
-
-
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -10,10 +8,16 @@ import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
 public class RankingScreen {
 
     private TableView<UsuarioRanking> tabla;
     private ObservableList<UsuarioRanking> datosRanking;
+
 
     public void start(Stage stage, Runnable onVolver) {
         tabla = new TableView<>();
@@ -25,15 +29,14 @@ public class RankingScreen {
         TableColumn<UsuarioRanking, Integer> puntosCol = new TableColumn<>("Puntos");
         puntosCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().getPuntos()).asObject());
 
-        TableColumn<UsuarioRanking, Integer> partidasCol = new TableColumn<>("Partidas");
-        partidasCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().getPartidas()).asObject());
+        TableColumn<UsuarioRanking, String> tiempoCol = new TableColumn<>("Tiempo");
+        tiempoCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().getTiempo()));
 
         TableColumn<UsuarioRanking, String> fechaCol = new TableColumn<>("Última Fecha");
         fechaCol.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().getUltimaFecha()));
 
-        tabla.getColumns().addAll(nombreCol, puntosCol, partidasCol, fechaCol);
+        tabla.getColumns().addAll(nombreCol, puntosCol, tiempoCol, fechaCol);
         tabla.setItems(datosRanking);
-
         Button btnVolver = new Button("Volver");
         btnVolver.setOnAction(e -> onVolver.run());
 
@@ -51,10 +54,25 @@ public class RankingScreen {
 
     private void cargarDatos() {
         datosRanking.clear();
-        // Simulando datos de prueba. Sustituir por lectura de base de datos.
-        datosRanking.add(new UsuarioRanking("Noelia", 1200, 14, "2025-05-11"));
-        datosRanking.add(new UsuarioRanking("Alex", 980, 10, "2025-05-10"));
-        datosRanking.add(new UsuarioRanking("Marcos", 1350, 16, "2025-05-12"));
-        datosRanking.add(new UsuarioRanking("Zoe", 875, 9, "2025-05-08"));
+
+        String sql = "SELECT nombre, puntuacion, tiempo, fecha_entrada FROM jugadores ORDER BY puntuacion DESC";
+
+        try (Connection conn = ConexionBD.conectar();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                String nombre = rs.getString("nombre");
+                int puntos = rs.getInt("puntuacion");
+                String tiempo = rs.getString("tiempo");
+                String fecha = rs.getString("fecha_entrada");
+
+                datosRanking.add(new UsuarioRanking(nombre, puntos, tiempo, fecha));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
+
 }

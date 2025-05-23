@@ -6,6 +6,7 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.scene.image.Image;
@@ -13,6 +14,9 @@ import javafx.scene.image.Image;
 import java.util.*;
 
 public class Game {
+    private boolean gameOver = false;
+    private StackPane root;
+
     private List<int[]> explosionTiles = new ArrayList<>();
     public static final int TILE_SIZE = 40;
     public static final int WIDTH = 15;
@@ -25,6 +29,9 @@ public class Game {
     private long lastMoveTime = 0;
     private List<Enemigo> enemigos = new ArrayList<>();
     private static final long MOVE_DELAY = 150_000_000; // nanosegundos (150ms)
+    private long startTime;  // Para el cronómetro
+    private boolean victoryShown = false; // Para no mostrar victoria múltiples veces
+    private int bloquesRestantes;
 
     public Game(String playerName) {
         this.playerName = playerName;
@@ -33,12 +40,16 @@ public class Game {
     public void start(Stage stage) {
         Canvas canvas = new Canvas(WIDTH * TILE_SIZE, HEIGHT * TILE_SIZE);
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        Scene scene = new Scene(new StackPane(canvas));
+        startTime = System.currentTimeMillis();
+
+        root = new StackPane(canvas); // Aquí guardas el StackPane en la variable root
+        Scene scene = new Scene(root);
+
         initMap();
 
         player = new Jugador(1, 1 ,this);
-        enemigos.add(new Enemigo("Goblin", 5, 5,this));
-        enemigos.add(new Enemigo("Orco", 7, 7,this
+        enemigos.add(new Enemigo("Enemigo 1", 5, 5,this));
+        enemigos.add(new Enemigo("Enemigo 2", 7, 7,this
         ));
         Set<KeyCode> keysPressed = new HashSet<>();
 
@@ -66,6 +77,7 @@ public class Game {
 
     private void initMap() {
         Random rand = new Random();
+        bloquesRestantes = 0; // Inicializar en 0
 
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
@@ -74,6 +86,7 @@ public class Game {
                 } else {
                     if (rand.nextDouble() < 0.3 && !(x <= 2 && y <= 2)) {
                         map[y][x] = Block.DESTRUCTIBLE;
+                        bloquesRestantes++; // Incrementa el contador
                     } else {
                         map[y][x] = Block.EMPTY;
                     }
@@ -104,6 +117,7 @@ public class Game {
 
 
 
+
     private void update(Set<KeyCode> keys, long now) {
         for (Power p : powerUps) {
             p.checkRecolectado(player);
@@ -117,6 +131,10 @@ public class Game {
             enemigo.moverAleatoriamente(WIDTH, HEIGHT ,map);
             enemigo.verificarGolpeJugador(player, now);
         }
+        if (!victoryShown && quedanBloquesDestructibles() == 0) {
+            victoryShown = true;
+            mostrarVictoria((Stage) root.getScene().getWindow());
+        }
 
 
 
@@ -127,6 +145,8 @@ public class Game {
             }
             return false;
         });
+        if (gameOver) return;
+
     }
 
     private void explode(int x, int y) {
@@ -179,10 +199,22 @@ public class Game {
 
             if (player.getVidas() <= 0) {
                 System.out.println("¡Has perdido!");
-                // Aquí puedes pausar el juego, mostrar "Game Over", etc.
+                mostrarGameOver((Stage) root.getScene().getWindow()); // Llama al método
             }
         }
     }
+    private int quedanBloquesDestructibles() {
+        int count = 0;
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                if (map[y][x] == Block.DESTRUCTIBLE) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     private void dañarEnemigosEn(int x, int y) {
         for (Enemigo enemigo : enemigos) {
             if (enemigo.estaVivo() && enemigo.getX() == x && enemigo.getY() == y) {
@@ -194,14 +226,56 @@ public class Game {
 
 
     private void destruirBloque(int x, int y) {
-        if (map[y][x] == Block.DESTRUCTIBLE || map[y][x] == Block.EMPTY) {
+        if (map[y][x] == Block.DESTRUCTIBLE) {
             map[y][x] = Block.EMPTY;
+            bloquesRestantes--;
         }
     }
+
+    private void mostrarVictoria(Stage stage) {
+        gameOver = true;
+
+        javafx.scene.control.Label victoryLabel = new javafx.scene.control.Label("¡HAS GANADO!");
+        victoryLabel.setStyle("-fx-font-size: 40px; -fx-text-fill: green;");
+
+        javafx.scene.control.Button reiniciarBtn = new javafx.scene.control.Button("Reiniciar");
+        reiniciarBtn.setOnAction(e -> {
+            Game nuevoJuego = new Game(playerName);
+            nuevoJuego.start(stage);
+        });
+
+        VBox victoryBox = new VBox(20, victoryLabel, reiniciarBtn);
+        victoryBox.setStyle("-fx-alignment: center;");
+        root.getChildren().add(victoryBox);
+    }
+
+    private void mostrarGameOver(Stage stage) {
+        gameOver = true;
+
+        javafx.scene.control.Label gameOverLabel = new javafx.scene.control.Label("GAME OVER");
+        gameOverLabel.setStyle("-fx-font-size: 40px; -fx-text-fill: red;");
+
+        javafx.scene.control.Button reiniciarBtn = new javafx.scene.control.Button("Reiniciar");
+        reiniciarBtn.setOnAction(e -> {
+            Game nuevoJuego = new Game(playerName);
+            nuevoJuego.start(stage);
+        });
+
+        VBox gameOverBox = new VBox(20, gameOverLabel, reiniciarBtn);
+        gameOverBox.setStyle("-fx-alignment: center;");
+        root.getChildren().add(gameOverBox);
+    }
+
 
     private void render(GraphicsContext gc) {
         gc.setFill(Color.GREENYELLOW);
         gc.fillRect(0, 0, WIDTH * TILE_SIZE, HEIGHT * TILE_SIZE);
+        long elapsedMillis = System.currentTimeMillis() - startTime;
+        long seconds = (elapsedMillis / 1000) % 60;
+        long minutes = (elapsedMillis / 1000) / 60;
+        String tiempo = String.format("Tiempo: %02d:%02d", minutes, seconds);
+
+
 
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
@@ -241,7 +315,9 @@ public class Game {
 
 
         gc.setFill(Color.BLACK);
-        gc.fillText("Jugador: " + playerName +" "+ "Vidas:"+ player.getVidas(), WIDTH * TILE_SIZE - 560, 20 );
+        gc.fillText("Jugador: " + playerName +" "+ "Vidas: "+ player.getVidas()+" " + tiempo +" "+ bloquesRestantes, WIDTH * TILE_SIZE - 560, 20 );
+
+        if (gameOver) return;
 
       /*  gc.setFill(Color.BLACK);
         gc.fillText("Jugador: " + playerName + " | Vidas: " + player.getVidas(), -130, HEIGHT * TILE_SIZE + 20);*/

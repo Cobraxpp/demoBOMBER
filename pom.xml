@@ -20,6 +20,7 @@
             <artifactId>javafx-controls</artifactId>
             <version>21</version>
         </dependency>
+
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
@@ -67,6 +68,8 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
+
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
             <artifactId>ikonli-javafx</artifactId>
@@ -111,6 +114,8 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+
+
     </dependencies>
 
     <build>
