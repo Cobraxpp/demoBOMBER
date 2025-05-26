@@ -7,29 +7,34 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        mostrarLogin(primaryStage);
+        mostrarIntro(primaryStage); // Primero muestra la intro
+    }
+
+    private void mostrarIntro(Stage stage) {
+        IntroScreen intro = new IntroScreen();
+        intro.start(stage, () -> mostrarLogin(stage)); // Al pulsar "START" va al login
     }
 
     private void mostrarLogin(Stage stage) {
         LoginScreen login = new LoginScreen();
         login.start(stage, username -> {
-            Game game = new Game(username);
-            game.start(stage);
-        }, () -> mostrarRegistro(stage),
-        () -> mostrarRanking(stage));
-    }
-    private void mostrarRanking(Stage stage) {
-        RankingScreen ranking = new RankingScreen();
-        ranking.start(stage, () -> mostrarLogin(stage)); // para volver al login
+                    Game game = new Game(username);
+                    game.setOnVolver(() -> mostrarLogin(stage));
+                    game.start(stage);
+                }, () -> mostrarRegistro(stage),
+                () -> mostrarRanking(stage));
     }
 
+    private void mostrarRanking(Stage stage) {
+        RankingScreen ranking = new RankingScreen();
+        ranking.start(stage, () -> mostrarLogin(stage));
+    }
 
     private void mostrarRegistro(Stage stage) {
         RegisterScreen register = new RegisterScreen();
         register.start(stage, (username, password) -> {
-            // Aquí podrías guardar el usuario en una base de datos, archivo, etc.
-            // Luego redirigir al login o directamente al juego:
             Game game = new Game(username);
+            game.setOnVolver(() -> mostrarLogin(stage));
             game.start(stage);
         });
     }

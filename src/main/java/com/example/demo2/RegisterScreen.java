@@ -6,6 +6,10 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.security.MessageDigest;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+
 public class RegisterScreen {
 
     public interface RegisterHandler {
@@ -39,7 +43,23 @@ public class RegisterScreen {
             } else if (!pass.equals(repeatPass)) {
                 showAlert("Las contraseñas no coinciden");
             } else {
-                handler.onRegister(user, pass);
+                try (Connection conn = ConexionBD.conectar()) {
+                    String query = "INSERT INTO jugadores (nombre, contrasena) VALUES (?, ?)";
+                    PreparedStatement stmt = conn.prepareStatement(query);
+                    stmt.setString(1, user);
+                    stmt.setString(2, hashPassword(pass)); // cifrado opcional
+
+                    int filasInsertadas = stmt.executeUpdate();
+                    if (filasInsertadas > 0) {
+                        showInfo("Usuario registrado correctamente");
+                        handler.onRegister(user, pass); // puedes cambiar esto si no quieres pasar la contraseña
+                    } else {
+                        showAlert("No se pudo registrar el usuario");
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    showAlert("Error de base de datos. ¿Usuario ya existe?");
+                }
             }
         });
 
@@ -51,5 +71,25 @@ public class RegisterScreen {
     private void showAlert(String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING, message);
         alert.showAndWait();
+    }
+
+    private void showInfo(String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, message);
+        alert.showAndWait();
+    }
+
+    // Método para cifrar la contraseña con SHA-256
+    private String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = md.digest(password.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashBytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error al cifrar la contraseña", e);
+        }
     }
 }

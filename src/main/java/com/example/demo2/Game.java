@@ -4,19 +4,23 @@ import javafx.animation.AnimationTimer;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-import javafx.scene.image.Image;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.*;
 
 public class Game {
     private boolean gameOver = false;
     private StackPane root;
-
+    private Image wallImage;
+    private Image destructibleImage;
+    private Image emptyImage;
     private List<int[]> explosionTiles = new ArrayList<>();
     public static final int TILE_SIZE = 40;
     public static final int WIDTH = 15;
@@ -32,6 +36,11 @@ public class Game {
     private long startTime;  // Para el cronómetro
     private boolean victoryShown = false; // Para no mostrar victoria múltiples veces
     private int bloquesRestantes;
+    private int bloqueDestruido=0;
+
+    private Runnable onVolver;
+
+
 
     public Game(String playerName) {
         this.playerName = playerName;
@@ -41,6 +50,9 @@ public class Game {
         Canvas canvas = new Canvas(WIDTH * TILE_SIZE, HEIGHT * TILE_SIZE);
         GraphicsContext gc = canvas.getGraphicsContext2D();
         startTime = System.currentTimeMillis();
+     // o lo que uses
+
+
 
         root = new StackPane(canvas); // Aquí guardas el StackPane en la variable root
         Scene scene = new Scene(root);
@@ -203,6 +215,7 @@ public class Game {
             }
         }
     }
+
     private int quedanBloquesDestructibles() {
         int count = 0;
         for (int y = 0; y < HEIGHT; y++) {
@@ -229,12 +242,46 @@ public class Game {
         if (map[y][x] == Block.DESTRUCTIBLE) {
             map[y][x] = Block.EMPTY;
             bloquesRestantes--;
+            bloqueDestruido++;
+        }
+    }
+    private void guardarPartida() {
+        int puntuacion =bloqueDestruido;
+        long duracion = (System.currentTimeMillis() - startTime) ;
+        registrarPartidaJugador(playerName, puntuacion, duracion);
+    }
+    public static void registrarPartidaJugador(String nombre, int bloqueDestruido, long duracionSegundos) {
+       int puntuacion =bloqueDestruido;
+        String sql = """
+        UPDATE jugadores 
+        SET puntuacion = ?, tiempo = ? 
+        WHERE id = (
+            SELECT id FROM (
+                SELECT id FROM jugadores WHERE nombre = ? ORDER BY id DESC LIMIT 1
+            ) AS sub
+        )
+    """;
+
+        try (Connection conn = ConexionBD.conectar(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, puntuacion); // nueva puntuación
+            stmt.setTime(2, new java.sql.Time(duracionSegundos)); // nueva duración
+            stmt.setString(3, nombre); // nombre para localizar el último registro
+            stmt.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
+
+    public void setOnVolver(Runnable onVolver) {
+        this.onVolver = onVolver;
+    }
+
+
+
     private void mostrarVictoria(Stage stage) {
         gameOver = true;
-
+        guardarPartida();
         javafx.scene.control.Label victoryLabel = new javafx.scene.control.Label("¡HAS GANADO!");
         victoryLabel.setStyle("-fx-font-size: 40px; -fx-text-fill: green;");
 
@@ -247,10 +294,12 @@ public class Game {
         VBox victoryBox = new VBox(20, victoryLabel, reiniciarBtn);
         victoryBox.setStyle("-fx-alignment: center;");
         root.getChildren().add(victoryBox);
+
     }
 
     private void mostrarGameOver(Stage stage) {
         gameOver = true;
+        guardarPartida();
 
         javafx.scene.control.Label gameOverLabel = new javafx.scene.control.Label("GAME OVER");
         gameOverLabel.setStyle("-fx-font-size: 40px; -fx-text-fill: red;");
@@ -261,15 +310,27 @@ public class Game {
             nuevoJuego.start(stage);
         });
 
-        VBox gameOverBox = new VBox(20, gameOverLabel, reiniciarBtn);
+        javafx.scene.control.Button btnVolver = new javafx.scene.control.Button("Volver");
+        btnVolver.setOnAction(e -> {
+            if (onVolver != null) {
+                onVolver.run();
+            }
+        });
+
+        VBox gameOverBox = new VBox(20, gameOverLabel, reiniciarBtn, btnVolver);
         gameOverBox.setStyle("-fx-alignment: center;");
         root.getChildren().add(gameOverBox);
     }
 
 
+
     private void render(GraphicsContext gc) {
-        gc.setFill(Color.GREENYELLOW);
+        Image bloqueImagen = new Image(getClass().getResource("/com/example/demo2/Ground.png").toExternalForm());
+
+
         gc.fillRect(0, 0, WIDTH * TILE_SIZE, HEIGHT * TILE_SIZE);
+
+        gc.drawImage(bloqueImagen,0,0, 15 * TILE_SIZE, 15 * TILE_SIZE);
         long elapsedMillis = System.currentTimeMillis() - startTime;
         long seconds = (elapsedMillis / 1000) % 60;
         long minutes = (elapsedMillis / 1000) / 60;
@@ -280,25 +341,36 @@ public class Game {
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
                 if (map[y][x] == Block.WALL) {
+                    Image Bloque = new Image(getClass().getResource("/com/example/demo2/Block.png").toExternalForm());
                     gc.setFill(Color.DARKGRAY);
                     gc.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    gc.drawImage(Bloque,x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                 } else if (map[y][x] == Block.DESTRUCTIBLE) {
+                    Image Destru = new Image(getClass().getResource("/com/example/demo2/Brick.png").toExternalForm());
+
                     gc.setFill(Color.BROWN);
                     gc.fillRect(x * TILE_SIZE + 4, y * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                    gc.drawImage(Destru,x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                 }
             }
         }
 
         for (Bomb bomb : bombs) {
-            gc.setFill(Color.RED);
-            gc.fillOval(bomb.getX() * TILE_SIZE + 8, bomb.getY() * TILE_SIZE + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+            Image Bombaima = new Image(getClass().getResource("/com/example/demo2/bombing.png").toExternalForm());
+
+
+            gc.drawImage(Bombaima,bomb.getX() * TILE_SIZE , bomb.getY() * TILE_SIZE , TILE_SIZE - 1, TILE_SIZE - 1);
         }
 
         player.render(gc);
         for (Enemigo enemigo : enemigos) {
             if (enemigo.estaVivo()) {
+
                 gc.setFill(Color.YELLOW);
-                gc.fillOval(enemigo.getX() * TILE_SIZE + 8, enemigo.getY() * TILE_SIZE + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+                Image Enemigoimg = new Image(getClass().getResource("/com/example/demo2/Enemigos.png").toExternalForm());
+
+               // gc.fillOval(enemigo.getX() * TILE_SIZE + 8, enemigo.getY() * TILE_SIZE + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+                gc.drawImage(Enemigoimg,enemigo.getX() * TILE_SIZE + 8, enemigo.getY() * TILE_SIZE + 8, TILE_SIZE - 6, TILE_SIZE - 1);
             }
         }
         for (Power p : powerUps) {
@@ -308,6 +380,7 @@ public class Game {
         for (int[] tile : explosionTiles) {
             int ex = tile[0];
             int ey = tile[1];
+
             gc.setFill(Color.RED);
             gc.fillRect(ex * TILE_SIZE + 4, ey * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8);
         }
