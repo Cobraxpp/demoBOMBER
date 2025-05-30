@@ -48,7 +48,5 @@ public class Power{
         }
     }
 
-    public boolean isRecogido() {
-        return recogido;
-    }
+
 }

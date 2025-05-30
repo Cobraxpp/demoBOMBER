@@ -18,23 +18,20 @@ import java.util.*;
 public class Game {
     private boolean gameOver = false;
     private StackPane root;
-    private Image wallImage;
-    private Image destructibleImage;
-    private Image emptyImage;
-    private List<int[]> explosionTiles = new ArrayList<>();
+    private List<int[]> explosionLugar = new ArrayList<>();
     public static final int TILE_SIZE = 40;
     public static final int WIDTH = 15;
     public static final int HEIGHT = 13;
     private final String playerName;
-    private Jugador player;
+    private Jugador jugador;
     private List<Power> powerUps = new ArrayList<>();
     private List<Bomb> bombs = new ArrayList<>();
     private Block[][] map = new Block[HEIGHT][WIDTH];
-    private long lastMoveTime = 0;
+    private long ultimoMovimiento = 0;
     private List<Enemigo> enemigos = new ArrayList<>();
-    private static final long MOVE_DELAY = 150_000_000; // nanosegundos (150ms)
-    private long startTime;  // Para el cronómetro
-    private boolean victoryShown = false; // Para no mostrar victoria múltiples veces
+    private static final long tiempoMovimiento = 150_000_000;
+    private long crono;
+    private boolean victory = false;
     private int bloquesRestantes;
     private int bloqueDestruido=0;
 
@@ -49,34 +46,31 @@ public class Game {
     public void start(Stage stage) {
         Canvas canvas = new Canvas(WIDTH * TILE_SIZE, HEIGHT * TILE_SIZE);
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        startTime = System.currentTimeMillis();
-     // o lo que uses
+        crono = System.currentTimeMillis();
 
-
-
-        root = new StackPane(canvas); // Aquí guardas el StackPane en la variable root
+        root = new StackPane(canvas);
         Scene scene = new Scene(root);
 
         initMap();
 
-        player = new Jugador(1, 1 ,this);
+        jugador = new Jugador(1, 1 ,this);
         enemigos.add(new Enemigo("Enemigo 1", 5, 5,this));
         enemigos.add(new Enemigo("Enemigo 2", 7, 7,this
         ));
-        Set<KeyCode> keysPressed = new HashSet<>();
+        Set<KeyCode> teclaPress = new HashSet<>();
 
-        scene.setOnKeyPressed(e -> keysPressed.add(e.getCode()));
+        scene.setOnKeyPressed(e -> teclaPress.add(e.getCode()));
         scene.setOnKeyReleased(e -> {
             if (e.getCode() == KeyCode.SPACE) {
-                bombs.add(new Bomb(player.getX(), player.getY(), System.currentTimeMillis()));
+                bombs.add(new Bomb(jugador.getX(), jugador.getY(), System.currentTimeMillis()));
             }
-            keysPressed.remove(e.getCode());
+            teclaPress.remove(e.getCode());
         });
 
         new AnimationTimer() {
             @Override
             public void handle(long now) {
-                update(keysPressed, now);
+                update(teclaPress, now);
                 render(gc);
             }
         }.start();
@@ -98,7 +92,7 @@ public class Game {
                 } else {
                     if (rand.nextDouble() < 0.3 && !(x <= 2 && y <= 2)) {
                         map[y][x] = Block.DESTRUCTIBLE;
-                        bloquesRestantes++; // Incrementa el contador
+                        bloquesRestantes++;
                     } else {
                         map[y][x] = Block.EMPTY;
                     }
@@ -106,15 +100,15 @@ public class Game {
             }
         }
 
-        int placed = 0;
-        while (placed < 3) {
+        int powers = 0;
+        while (powers < 3) {
             int x = rand.nextInt(WIDTH);
             int y = rand.nextInt(HEIGHT);
 
             if (map[y][x] == Block.EMPTY && !(x <= 2 && y <= 2)) {
                 PowerType tipo = rand.nextBoolean() ? PowerType.RANGO : PowerType.VELOCIDAD;
                 powerUps.add(new Power(x, y, tipo));
-                placed++;
+                powers++;
             }
         }
     }
@@ -132,26 +126,24 @@ public class Game {
 
     private void update(Set<KeyCode> keys, long now) {
         for (Power p : powerUps) {
-            p.checkRecolectado(player);
+            p.checkRecolectado(jugador);
         }
 
-        if (now - lastMoveTime > MOVE_DELAY) {
-            player.update(keys, map);
-            lastMoveTime = now;
+        if (now - ultimoMovimiento > tiempoMovimiento) {
+            jugador.update(keys, map);
+            ultimoMovimiento = now;
         }
         for (Enemigo enemigo : enemigos) {
             enemigo.moverAleatoriamente(WIDTH, HEIGHT ,map);
-            enemigo.verificarGolpeJugador(player, now);
+            enemigo.verificarGolpeJugador(jugador, now);
         }
-        if (!victoryShown && quedanBloquesDestructibles() == 0) {
-            victoryShown = true;
+        if (!victory && quedanBloquesDestructibles() == 0) {
+            victory = true;
             mostrarVictoria((Stage) root.getScene().getWindow());
         }
 
-
-
         bombs.removeIf(bomb -> {
-            if (bomb.shouldExplode()) {
+            if (bomb.Explotar()) {
                 explode(bomb.getX(), bomb.getY());
                 return true;
             }
@@ -162,7 +154,7 @@ public class Game {
     }
 
     private void explode(int x, int y) {
-        int rango = player.getBombaRango();
+        int rango = jugador.getBombaRango();
         long tiempoActual = System.currentTimeMillis();
         List<int[]> explosionArea = new ArrayList<>();
         explosionArea.add(new int[]{x, y});
@@ -188,28 +180,28 @@ public class Game {
 
 
 
-                if (map[ny][nx] == Block.DESTRUCTIBLE) break; // Detiene si rompe un bloque
+                if (map[ny][nx] == Block.DESTRUCTIBLE) break;
             }
         }
 
         // Añade las casillas al área de explosión visual
-        explosionTiles.addAll(explosionArea);
+        explosionLugar.addAll(explosionArea);
 
         // Después de 300ms se limpian para que desaparezca el efecto visual
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
-                explosionTiles.removeAll(explosionArea);
+                explosionLugar.removeAll(explosionArea);
             }
         }, 300);
 
     }
     private void verificarGolpeEnExplosion(int x, int y, long tiempoActual) {
-        if (player.getX() == x && player.getY() == y) {
-            player.perderVida(tiempoActual); // Se controla con invulnerabilidad
-            System.out.println("¡Explosión alcanzó al jugador! Vidas: " + player.getVidas());
+        if (jugador.getX() == x && jugador.getY() == y) {
+            jugador.perderVida(tiempoActual); // Se controla con invulnerabilidad
+            System.out.println("¡Explosión alcanzó al jugador! Vidas: " + jugador.getVidas());
 
-            if (player.getVidas() <= 0) {
+            if (jugador.getVidas() <= 0) {
                 System.out.println("¡Has perdido!");
                 mostrarGameOver((Stage) root.getScene().getWindow()); // Llama al método
             }
@@ -247,7 +239,7 @@ public class Game {
     }
     private void guardarPartida() {
         int puntuacion =bloqueDestruido;
-        long duracion = (System.currentTimeMillis() - startTime) ;
+        long duracion = (System.currentTimeMillis() - crono) ;
         registrarPartidaJugador(playerName, puntuacion, duracion);
     }
     public static void registrarPartidaJugador(String nombre, int bloqueDestruido, long duracionSegundos) {
@@ -263,9 +255,9 @@ public class Game {
     """;
 
         try (Connection conn = ConexionBD.conectar(); PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, puntuacion); // nueva puntuación
-            stmt.setTime(2, new java.sql.Time(duracionSegundos)); // nueva duración
-            stmt.setString(3, nombre); // nombre para localizar el último registro
+            stmt.setInt(1, puntuacion);
+            stmt.setTime(2, new java.sql.Time(duracionSegundos));
+            stmt.setString(3, nombre);
             stmt.executeUpdate();
         } catch (Exception e) {
             e.printStackTrace();
@@ -331,7 +323,7 @@ public class Game {
         gc.fillRect(0, 0, WIDTH * TILE_SIZE, HEIGHT * TILE_SIZE);
 
         gc.drawImage(bloqueImagen,0,0, 15 * TILE_SIZE, 15 * TILE_SIZE);
-        long elapsedMillis = System.currentTimeMillis() - startTime;
+        long elapsedMillis = System.currentTimeMillis() - crono;
         long seconds = (elapsedMillis / 1000) % 60;
         long minutes = (elapsedMillis / 1000) / 60;
         String tiempo = String.format("Tiempo: %02d:%02d", minutes, seconds);
@@ -362,7 +354,7 @@ public class Game {
             gc.drawImage(Bombaima,bomb.getX() * TILE_SIZE , bomb.getY() * TILE_SIZE , TILE_SIZE - 1, TILE_SIZE - 1);
         }
 
-        player.render(gc);
+        jugador.render(gc);
         for (Enemigo enemigo : enemigos) {
             if (enemigo.estaVivo()) {
 
@@ -377,7 +369,7 @@ public class Game {
             p.render(gc);
         }
         // Dibujar la explosión en rojo
-        for (int[] tile : explosionTiles) {
+        for (int[] tile : explosionLugar) {
             int ex = tile[0];
             int ey = tile[1];
 
@@ -388,12 +380,12 @@ public class Game {
 
 
         gc.setFill(Color.BLACK);
-        gc.fillText("Jugador: " + playerName +" "+ "Vidas: "+ player.getVidas()+" " + tiempo +" "+ bloquesRestantes, WIDTH * TILE_SIZE - 560, 20 );
+        gc.fillText("Jugador: " + playerName +" "+ "Vidas: "+ jugador.getVidas()+" " + tiempo +" "+ bloquesRestantes, WIDTH * TILE_SIZE - 560, 20 );
 
         if (gameOver) return;
 
       /*  gc.setFill(Color.BLACK);
-        gc.fillText("Jugador: " + playerName + " | Vidas: " + player.getVidas(), -130, HEIGHT * TILE_SIZE + 20);*/
+        gc.fillText("Jugador: " + playerName + " | Vidas: " + jugador.getVidas(), -130, HEIGHT * TILE_SIZE + 20);*/
 
     }
 }

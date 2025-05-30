@@ -6,9 +6,8 @@ public class Enemigo {
     private String nombre;
     private int x, y;
     private boolean estaVivo;
-    private long lastMoveTime = 0;  // Tiempo del último movimiento
-    private static final long MOVE_DELAY = 500_000_000; // Retraso de 500ms para el enemigo 1
-    private boolean vivo = true;
+    private long MoveTime = 0;  // Tiempo del último movimiento
+    private static final long MoveEnemigo = 500_000_000; // Retraso de 500ms para el enemigo 1
     private Game game;
 
     public Enemigo(String nombre, int x, int y, Game game) {
@@ -39,13 +38,12 @@ public class Enemigo {
     public void moverAleatoriamente(int maxX, int maxY, Block[][] mapa) {
         if (!estaVivo) return;
 
-        if (System.nanoTime() - lastMoveTime < MOVE_DELAY) {
-            return;  // Si no ha pasado el retraso, no se mueve
+        if (System.nanoTime() - MoveTime < MoveEnemigo) {
+            return;
         }
 
         Random rand = new Random();
-        int direccion = rand.nextInt(4); // 0: arriba, 1: abajo, 2: izquierda, 3: derecha
-
+        int direccion = rand.nextInt(4);
         int nuevoX = x, nuevoY = y;
 
         switch (direccion) {
@@ -63,8 +61,7 @@ public class Enemigo {
                 break;
         }
 
-        // Verificamos si la nueva posición es válida (no está fuera del mapa, no es una pared ni un bloque destructible)
-        // Verificamos si la nueva posición es válida y no hay una bomba
+
         if (nuevoX >= 0 && nuevoY >= 0 && nuevoX < maxX && nuevoY < maxY &&
                 mapa[nuevoY][nuevoX] != Block.WALL &&
                 mapa[nuevoY][nuevoX] != Block.DESTRUCTIBLE &&
@@ -74,10 +71,10 @@ public class Enemigo {
         }
 
 
-        lastMoveTime = System.nanoTime();  // Actualizamos el tiempo del último movimiento
+        MoveTime = System.nanoTime();
     }
 
-    // Métodos para obtener la posición del enemigo
+
     public int getX() {
         return x;
     }

@@ -1,7 +1,5 @@
 package com.example.demo2;
 
-import com.example.demo2.Block;
-import com.example.demo2.Game;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
@@ -37,7 +35,7 @@ public class Jugador {
         return bombaRango;
     }
     public void aumentarRangoBomba() {
-        if (bombaRango < 5) { // puedes limitar el rango máximo si quieres
+        if (bombaRango < 5) {
             bombaRango++;
         }
     }
@@ -50,6 +48,8 @@ public class Jugador {
     public int getVelocidad() {
         return velocidad;
     }
+
+
     public int getVidas() {
         return vidas;
     }
